@@ -1,174 +1,158 @@
-# selfprunednn
-# Self Pruning Neural Network. Final Report
+# Self-Pruning Neural Network
 
-## 1.
+## Overview
 
-Neural networks are a part of deep learning systems these days.. They often have too many parameters, which means they use up too much computer power and memory. We can use a technique called pruning to get rid of the weights and make the models work better.
+This project implements a **self-pruning neural network** that learns to remove unnecessary connections during training. Instead of manually pruning weights, the model uses a **gating mechanism** to identify and suppress unimportant weights automatically.
 
-In this project we made a *self pruning neural network** that can get rid of its own extra connections while it is being trained. It does this using a mechanism called a gate.
+The goal is to demonstrate that neural networks are **over-parameterized** and can be significantly compressed without major loss in accuracy.
 
-## 2. Methodology
+---
 
-### 2.1 Prunable Linear Layer
+## Key Idea
 
-of using the usual linear layer we made a custom **Prunable Linear** layer. Each weight has a parameter called a **gate score** that it can learn. When the network is working:
-
-* It calculates the gate values using the *gate score**.
-
-* It then uses these gate values to decide which weights are important.
-
-* If a gate value is close to 0 the connection is basically removed.
-
-This way the model can **figure out which connections are important**.
-
-### 2.2 Sparsity Regularization
-
-To help the network get rid of weights we changed the way it calculates its loss. We added a part to the loss function:
+Each weight in the network is multiplied by a learnable gate:
 
 ```
-
-Total Loss = CrossEntropyLoss + λ × SparsityLoss
-
+effective_weight = weight × sigmoid(gate_score)
 ```
 
-**SparsityLoss** is the average of all the gate values. Since gate values are between 0 and 1 making this loss smaller makes many gate values go to 0.
+* Gate ≈ 1 → connection is important
+* Gate ≈ 0 → connection is pruned
 
-### Why L1 Encourages Sparsity
+This allows the network to **learn which weights to keep and which to remove**.
 
-The L1 norm punishes all values equally. It makes many of them go to exactly 0. This makes the network **sparse** meaning only the important connections are left.
+---
 
-### 2.3 Training Setup
+## Loss Function
 
-* We used the CIFAR-10 dataset.
-
-* Our model was a neural network with **prunable layers**.
-
-* We used the Adam optimizer.
-
-* We used learning rates for the weights and the gates.
-
-We trained the model with λ values to see how it affects the trade-off between accuracy and sparsity.
-
-## 3. Results
-
-### 3.1 Summary Table
-
-| Lambda (λ) | Test Accuracy (%) | Accuracy Drop | Sparsity @ 0.01 (%) |
-
-| ---------- | ----------------- | ------------- | ------------------- |
-
-0.0        | 55.61             | +0.00         | 64.3                |
-
-| 0.01       | 54.83             | -0.78         | 68.8                |
-
-| 0.05       | **55.58**         | -0.03          72.8                |
-
-| 0.1        | 55.34             | -0.27         | **75.4**            |
-
-### 3.2 Observations
-
-* With **λ = 0** the model is already pretty **sparse** (~64%).
-
-* When we increase λ the model gets more **sparse**.
-
-* The model does not lose accuracy even when it is very **sparse**.
-
-* At **λ = 0.05** the model is almost as accurate as before. It has removed ~73% of its weights.
-
-### 3.3 Best Trade-off
-
-The best balance between accuracy and sparsity is when:
+The training objective combines classification performance with sparsity:
 
 ```
+Total Loss = CrossEntropy + λ × SparsityLoss
+```
 
+* **CrossEntropy Loss** → ensures prediction accuracy
+* **Sparsity Loss (L1 on gates)** → encourages many gates to go to 0
+
+This leads to a sparse network where only important connections remain.
+
+---
+
+## Model Architecture
+
+* Feedforward Neural Network (MLP)
+* Custom `PrunableLinear` layers
+* ReLU activations
+* Dataset: **CIFAR-10**
+
+---
+
+## Training Details
+
+* Optimizer: Adam
+* Separate learning rates:
+
+  * Weights: `1e-3`
+  * Gates: `2e-2` (higher for effective pruning)
+* Epochs: 50
+* Batch size: 128
+
+---
+
+## Results
+
+| Lambda (λ) | Accuracy (%) | Accuracy Drop | Sparsity (%) |
+| ---------- | ------------ | ------------- | ------------ |
+| 0.0        | 55.61        | +0.00         | 64.3         |
+| 0.01       | 54.83        | -0.78         | 68.8         |
+| 0.05       | **55.58**    | **-0.03**     | **72.8**     |
+| 0.1        | 55.34        | -0.27         | 75.4         |
+
+---
+
+## Best Configuration
+
+We select:
+
+```
 λ = 0.05
-
 ```
 
-* Accuracy: 55.58%
+### Why?
 
-* Sparsity: 72.8%
+* Maintains **almost identical accuracy** to baseline
+* Achieves **~73% pruning**
+* Provides the best **balance between performance and compression**
 
-This shows that a big part of the network is not needed.
+---
 
-## 4. Analysis
+## Key Observations
 
-### 4.1 Effect of λ (Lambda)
+* The model can remove **70–75% of weights** with minimal accuracy loss
+* Even without explicit pruning (λ = 0), some sparsity emerges naturally
+* Increasing λ increases sparsity but may slightly reduce accuracy
 
-* Low λ: The network does not prune much. It is very accurate.
+---
 
-* Medium λ: The network prunes some so it is a balance between accuracy and sparsity.
+## Gate Distribution
 
-* High λ: The network prunes a lot so it is very sparse. Not as accurate.
+The learned gate values show a **bimodal distribution**:
 
-λ controls how much the network prunes.
+* Large spike near **0** → pruned weights
+* Cluster near **1** → important weights
 
-### 4.2 Role of Threshold
+This confirms that the model successfully learns to separate useful and redundant connections.
 
-After training we use a threshold (like 0.01) to decide which weights to keep:
+---
 
-* If the gate value is less than the threshold the weight is removed.
+## How to Run
 
-* If the gate value is greater than or equal to the threshold the weight is kept.
+### 1. Install dependencies
 
-This makes the gate values into a *binary decision**.
+```bash
+pip install -r requirements.txt
+```
 
-### 4.3 Pareto Trade-off
+### 2. Run training
 
-The model shows a strong trade-off between accuracy and sparsity:
+```bash
+python code.py
+```
 
-* We can remove up to **75% of the weights**.
+---
 
-*. The model is still very accurate.
+## Outputs
 
-This shows that the network has a lot of weights.
+The script generates:
 
-## 5. Visualization Insights
+* Accuracy vs Epoch plots
+* Sparsity vs Epoch plots
+* Loss breakdown
+* Gate distribution histogram
+* Lambda vs Accuracy/Sparsity plots
 
-### Accuracy vs Lambda
+---
 
-* The accuracy stays about the same for λ values.
+## Conclusion
 
-* This means the model is very robust.
+This project demonstrates that:
 
-### Sparsity vs Lambda
+* Neural networks are highly over-parameterized
+* A self-pruning mechanism can effectively remove redundant weights
+* Significant compression (~70%+) is possible without degrading performance
 
-* The sparsity increases as λ increases.
+---
 
-* This shows that the L1 regularization is working well.
+## Future Work
 
-### Gate Distribution
+* Structured pruning (neurons/channels)
+* Applying pruning to CNNs (e.g., ResNet)
+* Deployment for efficient inference
 
-* Many gate values are close to 0.
+---
 
-* Some gate values are close to 1.
+## Final Statement
 
-This shows that the model can clearly tell which connections are important.
+> A large portion of neural network parameters are redundant, and self-pruning provides an effective way to reduce model complexity while preserving performance.
 
-## 6.
-
-This project shows that a **self pruning neural network** can learn to remove its extra connections during training.
-
-The main points are:
-
-* The gate mechanism lets the network prune itself.
-
-* L1 regularization makes the network sparse.
-
-* We can remove a lot of weights (~70-75%) without losing accuracy.
-
-* The model can find its optimal sparse structure.
-
-## 7. Future Work
-
-* We can try pruning neurons or channels.
-
-* We can apply pruning to layers.
-
-* We can use models, for real-time inference.
-
-## 8. Final Statement
-
-This experiment shows that:
-
-> Neural networks have a lot of parameters and a self-pruning mechanism can make them smaller and more efficient without losing much accuracy.
+---
