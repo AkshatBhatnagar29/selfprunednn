@@ -83,6 +83,7 @@ We select:
 * Maintains **almost identical accuracy** to baseline
 * Achieves **~73% pruning**
 * Provides the best **balance between performance and compression**
+* Choose lambda which is the elbow point.
 
 ---
 
