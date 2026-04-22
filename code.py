@@ -436,9 +436,24 @@ print(f"  {'─'*6}-+-{'─'*7}-+-{'─'*6}-+-{'─'*8}-+-{'─'*8}-+-{'─'*9}"
 for lam, r in results.items():
     drop = r['acc'] - baseline
     candidates = {l: v for l, v in results.items() if abs(v['acc'] - baseline) < 2.0}
-    best_lam = max(candidates,key=lambda l: candidates[l]['s01'] - abs(candidates[l]['acc'] - baseline))
-    tag = "  ← best λ" if lam == best_lam else ""
+    best_lam = min(
+    candidates,
+    key=lambda l: abs(candidates[l]['acc'] - baseline)
+)
     print(f"  {lam:>6} | {r['acc']:>7.2f} | {drop:>+6.2f} | {r['s50']:>7.1f}% | {r['s10']:>7.1f}% | {r['s01']:>8.1f}%{tag}")
 
 print(f"\n  Saved plots: pruning_cifar_*.png, gate_distribution_*.png, lambda_sweep_cifar.png")
 
+lams = list(results.keys())
+accs = np.array([results[l]['acc'] for l in lams])
+sparsity = np.array([results[l]['s01'] for l in lams])
+
+# normalize
+accs_norm = (accs - accs.min()) / (accs.max() - accs.min())
+sp_norm = (sparsity - sparsity.min()) / (sparsity.max() - sparsity.min())
+
+# elbow score: maximize both
+scores = sp_norm - (1 - accs_norm)
+
+best_lam = lams[np.argmax(scores)]
+print("Best λ (Elbow):", best_lam)
